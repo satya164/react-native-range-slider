@@ -1,27 +1,29 @@
 import * as React from 'react';
 
-import { StyleSheet, View, Text } from 'react-native';
-import { multiply } from 'react-native-range-slider';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { RangeSlider } from 'react-native-range-slider';
 
 export default function App() {
-  const [result, setResult] = React.useState<number | undefined>();
-
-  React.useEffect(() => {
-    multiply(3, 7).then(setResult);
-  }, []);
-
   return (
-    <View style={styles.container}>
-      <Text>Result: {result}</Text>
-    </View>
+    <GestureHandlerRootView style={styles.container}>
+      <RangeSlider
+        minDelta={4}
+        defaultValue={[10, 50]}
+        onValueChange={(value) => {
+          console.log('value changed', value);
+        }}
+      />
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'center',
+    padding: 20,
   },
   box: {
     width: 60,
