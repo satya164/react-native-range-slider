@@ -9,7 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 type Props = {
-  defaultValue: [number, number];
+  defaultValue: readonly [number, number];
   onValueChange: (value: [number, number]) => void;
   minDelta?: number;
   trackHeight?: number;
@@ -27,66 +27,107 @@ export function RangeSlider({
   minDelta = 0,
   thumbColor = '#111',
   trackColor = '#000',
-  fillColor = 'tomato',
+  fillColor = '#0e7afe',
 }: Props) {
   const width = useSharedValue(0);
 
-  const start = useSharedValue(defaultValue[0]);
-  const end = useSharedValue(defaultValue[1]);
+  const range = useSharedValue({
+    start: defaultValue[0],
+    end: defaultValue[1],
+  });
 
-  const offsetStart = useSharedValue(0);
-  const offsetEnd = useSharedValue(0);
+  const active = useSharedValue({
+    start: false,
+    end: false,
+  });
 
-  const activeStart = useSharedValue(false);
-  const activeEnd = useSharedValue(false);
+  const offset = useSharedValue({
+    start: 0,
+    end: 0,
+  });
 
   const gesture = Gesture.Pan()
     .onBegin((e) => {
-      offsetStart.value = (start.value * width.value) / 100;
-      offsetEnd.value = (end.value * width.value) / 100;
+      // The range value is in 0-100 range, so we need to convert it to pixels
+      offset.value = {
+        start: (range.value.start * width.value) / 100,
+        end: (range.value.end * width.value) / 100,
+      };
 
-      activeStart.value = e.x < offsetStart.value + thumbSize;
-      activeEnd.value = e.x > offsetEnd.value + thumbSize;
+      // Detect which thumb is active based on the touch position
+      active.value = {
+        start: e.x < offset.value.start + thumbSize,
+        end: e.x > offset.value.end + thumbSize,
+      };
     })
     .onUpdate((e) => {
-      if (!activeStart.value && !activeEnd.value) {
+      if (!active.value.start && !active.value.end) {
         return;
       }
 
-      const offset = activeStart.value ? offsetStart : offsetEnd;
-      const result = ((offset.value + e.translationX) / width.value) * 100;
+      // Calculate the new value based on how much the finger moved
+      // Then convert the final result to 0-100 range from pixels
+      const delta = active.value.start ? offset.value.start : offset.value.end;
+      const result = ((delta + e.translationX) / width.value) * 100;
 
-      if (activeStart.value) {
-        start.value = Math.min(end.value - minDelta, Math.max(0, result));
+      const clamp = (value: number, min: number, max: number) =>
+        Math.round(Math.min(Math.max(value, min), max));
+
+      if (active.value.start) {
+        range.value = {
+          // The start thumb can't go past the end thumb and should be at least minDelta away from it
+          start: clamp(result, 0, range.value.end - minDelta),
+          end: range.value.end,
+        };
       } else {
-        end.value = Math.max(start.value + minDelta, Math.min(100, result));
+        range.value = {
+          start: range.value.start,
+          // The end thumb can't go past the start thumb and should be at least minDelta away from it
+          end: clamp(result, range.value.start + minDelta, 100),
+        };
       }
     })
     .onFinalize(() => {
-      activeStart.value = false;
-      activeEnd.value = false;
+      active.value = {
+        start: false,
+        end: false,
+      };
 
-      runOnJS(onValueChange)([start.value, end.value]);
+      runOnJS(onValueChange)([range.value.start, range.value.end]);
     });
 
   const fillStyle = useAnimatedStyle(() => {
     return {
-      width: ((end.value - start.value) / 100) * width.value,
+      // The fill should be as wide as the distance between the two thumbs
+      width: ((range.value.end - range.value.start) / 100) * width.value,
       transform: [
-        { translateX: (start.value / 100) * width.value + thumbSize },
+        {
+          // The fill should start at the same position as the start thumb
+          translateX: (range.value.start / 100) * width.value,
+        },
       ],
     };
   });
 
   const startThumbStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ translateX: (start.value / 100) * width.value }],
+      transform: [
+        {
+          // Convert the range value from 0-100 to pixels
+          translateX: (range.value.start / 100) * width.value,
+        },
+      ],
     };
   });
 
   const endThumbStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ translateX: (end.value / 100) * width.value }],
+      transform: [
+        {
+          // Convert the range value from 0-100 to pixels
+          translateX: (range.value.end / 100) * width.value,
+        },
+      ],
     };
   });
 
@@ -101,7 +142,7 @@ export function RangeSlider({
 
   return (
     <GestureDetector gesture={gesture}>
-      <View>
+      <View style={{ height: thumbSize }}>
         <View
           style={{
             height: trackHeight,
@@ -115,8 +156,9 @@ export function RangeSlider({
               fillStyle,
               StyleSheet.absoluteFill,
               {
-                backgroundColor: fillColor,
+                left: thumbSize,
                 height: trackHeight,
+                backgroundColor: fillColor,
               },
             ]}
           />
