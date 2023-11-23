@@ -12,6 +12,8 @@ import Animated, {
 type Props = {
   defaultValue: readonly [number, number];
   onValueChange: (value: [number, number]) => void;
+  range?: readonly [number, number];
+  step?: number;
   minDelta?: number;
   trackHeight?: number;
   thumbSize?: number;
@@ -23,18 +25,23 @@ type Props = {
 export function RangeSlider({
   defaultValue,
   onValueChange,
+  range = [0, 100],
+  step = 1,
+  minDelta = 0,
   thumbSize = 30,
   trackHeight = 5,
-  minDelta = 0,
   thumbColor = '#111',
   trackColor = '#000',
   fillColor = '#0e7afe',
 }: Props) {
-  const width = useSharedValue(0);
+  // Get the distance between the range
+  const distance = range[1] - range[0];
 
-  const range = useSharedValue({
-    start: defaultValue[0],
-    end: defaultValue[1],
+  // We operate on the scale of 0-distance to keep things simple
+  // We'll add it back when we call the onValueChange callback
+  const current = useSharedValue({
+    start: defaultValue[0] - range[0],
+    end: defaultValue[1] - range[0],
   });
 
   const active = useSharedValue({
@@ -47,22 +54,24 @@ export function RangeSlider({
     end: 0,
   });
 
-  // Multiplier to convert the value from 0-100 range to pixels
-  const px = useDerivedValue(() => width.value / 100);
+  const width = useSharedValue(0);
 
-  // Clamp the value to the bounds and round it to avoid decimal numbers
-  const clamp = (value: number, min: number, max: number) => {
+  // Multiplier to convert the value from range to pixels
+  const px = useDerivedValue(() => width.value / distance);
+
+  // Clamp the value to the bounds and round it to the nearest step
+  const normalize = (value: number, min: number, max: number) => {
     'worklet';
 
-    return Math.round(Math.min(Math.max(value, min), max));
+    return Math.round(Math.min(Math.max(value, min), max) / step) * step;
   };
 
   const gesture = Gesture.Pan()
     .onBegin((e) => {
       // Record the initial position of the thumbs so we can add the translationX
       offset.value = {
-        start: range.value.start * px.value,
-        end: range.value.end * px.value,
+        start: current.value.start * px.value,
+        end: current.value.end * px.value,
       };
 
       // Detect which thumb is active based on the touch position
@@ -72,28 +81,34 @@ export function RangeSlider({
       };
     })
     .onUpdate((e) => {
-      if (!active.value.start && !active.value.end) {
-        return;
-      }
-
-      // Calculate the new value based on how much the finger moved
-      // Then convert the final result to 0-100 range from pixels
-      const diff = active.value.start ? offset.value.start : offset.value.end;
-      const result = (diff + e.translationX) / px.value;
+      let start, end;
 
       if (active.value.start) {
-        range.value = {
-          // The start thumb can't go past the end thumb and should be at least minDelta away from it
-          start: clamp(result, 0, range.value.end - minDelta),
-          end: range.value.end,
-        };
-      } else {
-        range.value = {
-          start: range.value.start,
-          // The end thumb can't go past the start thumb and should be at least minDelta away from it
-          end: clamp(result, range.value.start + minDelta, 100),
-        };
+        // The start thumb can't go past the end thumb and should be at least minDelta away from it
+        start = normalize(
+          // Calculate the new value based on how much the finger moved
+          // Then convert the final result from pixels back to range
+          (offset.value.start + e.translationX) / px.value,
+          0,
+          current.value.end - minDelta
+        );
       }
+
+      if (active.value.end) {
+        // The end thumb can't go past the start thumb and should be at least minDelta away from it
+        end = normalize(
+          // Calculate the new value based on how much the finger moved
+          // Then convert the final result from pixels back to range
+          (offset.value.end + e.translationX) / px.value,
+          current.value.start + minDelta,
+          distance
+        );
+      }
+
+      current.value = {
+        start: start ?? current.value.start,
+        end: end ?? current.value.end,
+      };
     })
     .onFinalize(() => {
       active.value = {
@@ -101,16 +116,19 @@ export function RangeSlider({
         end: false,
       };
 
-      runOnJS(onValueChange)([range.value.start, range.value.end]);
+      runOnJS(onValueChange)([
+        current.value.start + range[0],
+        current.value.end + range[0],
+      ]);
     });
 
   const fillStyle = useAnimatedStyle(() => {
-    const scaleX = (range.value.end - range.value.start) / 100;
+    const scaleX = (current.value.end - current.value.start) / distance;
 
     return {
       transform: [
         // The fill should start at the same position as the start thumb
-        { translateX: range.value.start * px.value },
+        { translateX: current.value.start * px.value },
         // The fill should be as wide as the distance between the two thumbs
         { scaleX },
         // Additional offset to keep it anchored to the left as scale is relative to the center
@@ -123,13 +141,13 @@ export function RangeSlider({
 
   const startThumbStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ translateX: range.value.start * px.value }],
+      transform: [{ translateX: current.value.start * px.value }],
     };
   });
 
   const endThumbStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ translateX: range.value.end * px.value }],
+      transform: [{ translateX: current.value.end * px.value }],
     };
   });
 

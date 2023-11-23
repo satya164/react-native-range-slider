@@ -5,13 +5,19 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { RangeSlider } from 'react-native-range-slider';
 
 export default function App() {
-  const [value, setValue] = React.useState<[number, number]>([10, 50]);
+  const [value, setValue] = React.useState<[number, number]>([24, 64]);
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <RangeSlider minDelta={5} defaultValue={value} onValueChange={setValue} />
+      <RangeSlider
+        range={[16, 256]}
+        step={8}
+        minDelta={8}
+        defaultValue={value}
+        onValueChange={setValue}
+      />
       <Text>
-        Range: {value[0]} - {value[1]}
+        Selected: {value[0]} - {value[1]}
       </Text>
     </GestureHandlerRootView>
   );
