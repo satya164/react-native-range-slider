@@ -9,12 +9,12 @@ import Animated, {
   useSharedValue,
 } from 'react-native-reanimated';
 
-type Props = {
-  defaultValue: readonly [number, number];
-  onValueChange: (value: [number, number]) => void;
+type Props<T extends number | [number, number]> = {
+  defaultValue: T;
+  onValueChange: (value: T) => void;
   range?: readonly [number, number];
   step?: number;
-  minDelta?: number;
+  minDelta?: T extends number ? undefined : number;
   trackHeight?: number;
   thumbSize?: number;
   thumbColor?: string;
@@ -22,7 +22,7 @@ type Props = {
   fillColor?: string;
 };
 
-export function RangeSlider({
+export function RangeSlider<T extends number | [number, number]>({
   defaultValue,
   onValueChange,
   range = [0, 100],
@@ -33,15 +33,21 @@ export function RangeSlider({
   thumbColor = '#111',
   trackColor = '#000',
   fillColor = '#0e7afe',
-}: Props) {
+}: Props<T>) {
   // Get the distance between the range
   const distance = range[1] - range[0];
+  const isSingle = typeof defaultValue === 'number';
 
   // We operate on the scale of 0-distance to keep things simple
   // We'll add it back when we call the onValueChange callback
   const current = useSharedValue({
-    start: defaultValue[0] - range[0],
-    end: defaultValue[1] - range[0],
+    // If we are dealing with a single value, we only show the end thumb
+    // So we set the start thumb to 0
+    start: typeof defaultValue === 'number' ? 0 : defaultValue[0] - range[0],
+    end:
+      typeof defaultValue === 'number'
+        ? defaultValue - range[0]
+        : defaultValue[1] - range[0],
   });
 
   const active = useSharedValue({
@@ -74,11 +80,19 @@ export function RangeSlider({
         end: current.value.end * px.value,
       };
 
-      // Detect which thumb is active based on the touch position
-      active.value = {
-        start: e.x < offset.value.start + thumbSize,
-        end: e.x > offset.value.end + thumbSize,
-      };
+      if (isSingle) {
+        // Only the end thumb is present for single value
+        active.value = {
+          start: false,
+          end: true,
+        };
+      } else {
+        // Detect which thumb is active based on the touch position
+        active.value = {
+          start: e.x < offset.value.start + thumbSize,
+          end: e.x > offset.value.end + thumbSize,
+        };
+      }
     })
     .onUpdate((e) => {
       let start, end;
@@ -116,10 +130,12 @@ export function RangeSlider({
         end: false,
       };
 
-      runOnJS(onValueChange)([
-        current.value.start + range[0],
-        current.value.end + range[0],
-      ]);
+      // @ts-expect-error: The type will be different based on the defaultValue
+      const value: T = isSingle
+        ? current.value.end + range[0]
+        : [current.value.start + range[0], current.value.end + range[0]];
+
+      runOnJS(onValueChange)(value);
     });
 
   const fillStyle = useAnimatedStyle(() => {
@@ -165,10 +181,11 @@ export function RangeSlider({
       <View style={{ height: thumbSize }}>
         <View
           style={{
+            top: thumbSize / 2 - trackHeight / 2,
             height: trackHeight,
-            width: '100%',
             backgroundColor: trackColor,
             borderRadius: trackHeight / 2,
+            overflow: 'hidden',
           }}
         >
           <Animated.View
@@ -176,7 +193,13 @@ export function RangeSlider({
               fillStyle,
               StyleSheet.absoluteFill,
               {
-                height: trackHeight,
+                position: 'absolute',
+                left: isSingle
+                  ? // For single value, start thumb is not present
+                    // So we need to move the fill towards the left
+                    -thumbSize
+                  : 0,
+                height: '100%',
                 backgroundColor: fillColor,
               },
             ]}
@@ -185,18 +208,24 @@ export function RangeSlider({
         <View
           style={{
             position: 'absolute',
-            top: -thumbSize / 2 + trackHeight / 2,
-            left: thumbSize,
+            // Reserve additional space for the start and end thumbs on both sides
             right: thumbSize,
-            height: thumbSize,
+            left: isSingle
+              ? // For single value, start thumb is not present
+                // So we need to remove the space for it from the left
+                0
+              : thumbSize,
+            height: '100%',
           }}
           onLayout={({ nativeEvent }) => {
             width.value = nativeEvent.layout.width;
           }}
         >
-          <Animated.View
-            style={[thumbStyle, startThumbStyle, { left: -thumbSize }]}
-          />
+          {isSingle ? null : ( // Don't render the start thumb for single value
+            <Animated.View
+              style={[thumbStyle, startThumbStyle, { left: -thumbSize }]}
+            />
+          )}
           <Animated.View style={[thumbStyle, endThumbStyle, { left: 0 }]} />
         </View>
       </View>
