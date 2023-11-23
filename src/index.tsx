@@ -5,6 +5,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
+  useDerivedValue,
   useSharedValue,
 } from 'react-native-reanimated';
 
@@ -46,12 +47,22 @@ export function RangeSlider({
     end: 0,
   });
 
+  // Multiplier to convert the value from 0-100 range to pixels
+  const px = useDerivedValue(() => width.value / 100);
+
+  // Clamp the value to the bounds and round it to avoid decimal numbers
+  const clamp = (value: number, min: number, max: number) => {
+    'worklet';
+
+    return Math.round(Math.min(Math.max(value, min), max));
+  };
+
   const gesture = Gesture.Pan()
     .onBegin((e) => {
-      // The range value is in 0-100 range, so we need to convert it to pixels
+      // Record the initial position of the thumbs so we can add the translationX
       offset.value = {
-        start: (range.value.start * width.value) / 100,
-        end: (range.value.end * width.value) / 100,
+        start: range.value.start * px.value,
+        end: range.value.end * px.value,
       };
 
       // Detect which thumb is active based on the touch position
@@ -67,11 +78,8 @@ export function RangeSlider({
 
       // Calculate the new value based on how much the finger moved
       // Then convert the final result to 0-100 range from pixels
-      const delta = active.value.start ? offset.value.start : offset.value.end;
-      const result = ((delta + e.translationX) / width.value) * 100;
-
-      const clamp = (value: number, min: number, max: number) =>
-        Math.round(Math.min(Math.max(value, min), max));
+      const diff = active.value.start ? offset.value.start : offset.value.end;
+      const result = (diff + e.translationX) / px.value;
 
       if (active.value.start) {
         range.value = {
@@ -102,7 +110,7 @@ export function RangeSlider({
     return {
       transform: [
         // The fill should start at the same position as the start thumb
-        { translateX: (range.value.start / 100) * width.value },
+        { translateX: range.value.start * px.value },
         // The fill should be as wide as the distance between the two thumbs
         { scaleX },
         // Additional offset to keep it anchored to the left as scale is relative to the center
@@ -115,19 +123,13 @@ export function RangeSlider({
 
   const startThumbStyle = useAnimatedStyle(() => {
     return {
-      transform: [
-        // Convert the range value from 0-100 to pixels
-        { translateX: (range.value.start / 100) * width.value },
-      ],
+      transform: [{ translateX: range.value.start * px.value }],
     };
   });
 
   const endThumbStyle = useAnimatedStyle(() => {
     return {
-      transform: [
-        // Convert the range value from 0-100 to pixels
-        { translateX: (range.value.end / 100) * width.value },
-      ],
+      transform: [{ translateX: range.value.end * px.value }],
     };
   });
 
