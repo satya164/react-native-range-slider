@@ -97,14 +97,18 @@ export function RangeSlider({
     });
 
   const fillStyle = useAnimatedStyle(() => {
+    const scaleX = (range.value.end - range.value.start) / 100;
+
     return {
-      // The fill should be as wide as the distance between the two thumbs
-      width: ((range.value.end - range.value.start) / 100) * width.value,
       transform: [
-        {
-          // The fill should start at the same position as the start thumb
-          translateX: (range.value.start / 100) * width.value,
-        },
+        // The fill should start at the same position as the start thumb
+        { translateX: (range.value.start / 100) * width.value },
+        // The fill should be as wide as the distance between the two thumbs
+        { scaleX },
+        // Additional offset to keep it anchored to the left as scale is relative to the center
+        // Any translation here will be scaled by the scaleX, so we need to divide to cancel it out
+        // Simplified version of: -(width / 2 - (width * scale) / 2) / scale
+        { translateX: -((width.value * (1 - scaleX)) / 2) / scaleX },
       ],
     };
   });
@@ -112,10 +116,8 @@ export function RangeSlider({
   const startThumbStyle = useAnimatedStyle(() => {
     return {
       transform: [
-        {
-          // Convert the range value from 0-100 to pixels
-          translateX: (range.value.start / 100) * width.value,
-        },
+        // Convert the range value from 0-100 to pixels
+        { translateX: (range.value.start / 100) * width.value },
       ],
     };
   });
@@ -123,10 +125,8 @@ export function RangeSlider({
   const endThumbStyle = useAnimatedStyle(() => {
     return {
       transform: [
-        {
-          // Convert the range value from 0-100 to pixels
-          translateX: (range.value.end / 100) * width.value,
-        },
+        // Convert the range value from 0-100 to pixels
+        { translateX: (range.value.end / 100) * width.value },
       ],
     };
   });
@@ -156,7 +156,6 @@ export function RangeSlider({
               fillStyle,
               StyleSheet.absoluteFill,
               {
-                left: thumbSize,
                 height: trackHeight,
                 backgroundColor: fillColor,
               },
