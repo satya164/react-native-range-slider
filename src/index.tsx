@@ -10,7 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 type Props<T extends number | [number, number]> = {
-  defaultValue: T;
+  value: T;
   onValueChange: (value: T) => void;
   range?: readonly [number, number];
   step?: number;
@@ -23,7 +23,7 @@ type Props<T extends number | [number, number]> = {
 };
 
 export function RangeSlider<T extends number | [number, number]>({
-  defaultValue,
+  value,
   onValueChange,
   range = [0, 100],
   step = 1,
@@ -36,19 +36,15 @@ export function RangeSlider<T extends number | [number, number]>({
 }: Props<T>) {
   // Get the distance between the range
   const distance = range[1] - range[0];
-  const isSingle = typeof defaultValue === 'number';
+  const beginning = range[0];
+  const single = typeof value === 'number';
 
-  // We operate on the scale of 0-distance to keep things simple
-  // We'll add it back when we call the onValueChange callback
-  const current = useSharedValue({
-    // If we are dealing with a single value, we only show the end thumb
-    // So we set the start thumb to 0
-    start: typeof defaultValue === 'number' ? 0 : defaultValue[0] - range[0],
-    end:
-      typeof defaultValue === 'number'
-        ? defaultValue - range[0]
-        : defaultValue[1] - range[0],
-  });
+  const current = useSharedValue(createPair(value, beginning));
+
+  // If the value prop changes, update the current value
+  React.useEffect(() => {
+    current.value = createPair(value, beginning);
+  }, [value, beginning, current]);
 
   const active = useSharedValue({
     start: false,
@@ -65,13 +61,6 @@ export function RangeSlider<T extends number | [number, number]>({
   // Multiplier to convert the value from range to pixels
   const px = useDerivedValue(() => width.value / distance);
 
-  // Clamp the value to the bounds and round it to the nearest step
-  const normalize = (value: number, min: number, max: number) => {
-    'worklet';
-
-    return Math.round(Math.min(Math.max(value, min), max) / step) * step;
-  };
-
   const gesture = Gesture.Pan()
     .onBegin((e) => {
       // Record the initial position of the thumbs so we can add the translationX
@@ -80,7 +69,7 @@ export function RangeSlider<T extends number | [number, number]>({
         end: current.value.end * px.value,
       };
 
-      if (isSingle) {
+      if (single) {
         // Only the end thumb is present for single value
         active.value = {
           start: false,
@@ -104,7 +93,8 @@ export function RangeSlider<T extends number | [number, number]>({
           // Then convert the final result from pixels back to range
           (offset.value.start + e.translationX) / px.value,
           0,
-          current.value.end - minDelta
+          current.value.end - minDelta,
+          step
         );
       }
 
@@ -115,7 +105,8 @@ export function RangeSlider<T extends number | [number, number]>({
           // Then convert the final result from pixels back to range
           (offset.value.end + e.translationX) / px.value,
           current.value.start + minDelta,
-          distance
+          distance,
+          step
         );
       }
 
@@ -131,11 +122,11 @@ export function RangeSlider<T extends number | [number, number]>({
       };
 
       // @ts-expect-error: The type will be different based on the defaultValue
-      const value: T = isSingle
+      const result: T = single
         ? current.value.end + range[0]
         : [current.value.start + range[0], current.value.end + range[0]];
 
-      runOnJS(onValueChange)(value);
+      runOnJS(onValueChange)(result);
     });
 
   const fillStyle = useAnimatedStyle(() => {
@@ -194,7 +185,7 @@ export function RangeSlider<T extends number | [number, number]>({
               StyleSheet.absoluteFill,
               {
                 position: 'absolute',
-                left: isSingle
+                left: single
                   ? // For single value, start thumb is not present
                     // So we need to move the fill towards the left
                     -thumbSize
@@ -210,7 +201,7 @@ export function RangeSlider<T extends number | [number, number]>({
             position: 'absolute',
             // Reserve additional space for the start and end thumbs on both sides
             right: thumbSize,
-            left: isSingle
+            left: single
               ? // For single value, start thumb is not present
                 // So we need to remove the space for it from the left
                 0
@@ -221,7 +212,7 @@ export function RangeSlider<T extends number | [number, number]>({
             width.value = nativeEvent.layout.width;
           }}
         >
-          {isSingle ? null : ( // Don't render the start thumb for single value
+          {single ? null : ( // Don't render the start thumb for single value
             <Animated.View
               style={[thumbStyle, startThumbStyle, { left: -thumbSize }]}
             />
@@ -232,3 +223,21 @@ export function RangeSlider<T extends number | [number, number]>({
     </GestureDetector>
   );
 }
+
+const createPair = (value: number | [number, number], beginning: number) => {
+  // We operate on the scale of 0-distance to keep things simple
+  // We'll add it back when we call the onValueChange callback
+  return {
+    // If we are dealing with a single value, we only show the end thumb
+    // So we set the start thumb to 0
+    start: typeof value === 'number' ? 0 : value[0] - beginning,
+    end: typeof value === 'number' ? value - beginning : value[1] - beginning,
+  };
+};
+
+// Clamp the value to the bounds and round it to the nearest step
+const normalize = (value: number, min: number, max: number, step: number) => {
+  'worklet';
+
+  return Math.round(Math.min(Math.max(value, min), max) / step) * step;
+};

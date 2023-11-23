@@ -16,7 +16,7 @@ export default function App() {
         <RangeSlider
           range={[15, 75]}
           step={5}
-          defaultValue={singleValue}
+          value={singleValue}
           onValueChange={setSingleValue}
         />
         <Text style={styles.subtitle}>Selected: {singleValue}</Text>
@@ -26,7 +26,7 @@ export default function App() {
           range={[16, 256]}
           step={8}
           minDelta={8}
-          defaultValue={rangeValue}
+          value={rangeValue}
           onValueChange={setRangeValue}
         />
         <Text style={styles.subtitle}>
