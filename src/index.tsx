@@ -10,16 +10,46 @@ import Animated, {
 } from 'react-native-reanimated';
 
 type Props<T extends number | [number, number]> = {
+  /**
+   * The value of the slider. Pass a number for a single value slider or a tuple of 2 numbers for a range slider.
+   */
   value: T;
+  /**
+   * Callback which is called when the value of the slider changes.
+   */
   onValueChange: (value: T) => void;
+  /**
+   * The range of the slider. The first value is the minimum value and the second value is the maximum value.
+   */
   range?: readonly [number, number];
+  /**
+   * The step value of the slider. The slider will snap to multiples of this value.
+   */
   step?: number;
+  /**
+   * The minimum distance between the two thumbs. Only applicable for range slider.
+   */
   minDelta?: T extends number ? undefined : number;
-  trackHeight?: number;
-  thumbSize?: number;
+  /**
+   * The color of the thumbs of the slider.
+   */
   thumbColor?: string;
+  /**
+   * The size of the thumbs of the slider.
+   */
+  thumbSize?: number;
+  /**
+   * The color of the track of the slider.
+   */
   trackColor?: string;
-  fillColor?: string;
+  /**
+   * The color of the filled part of the track of the slider.
+   */
+  trackFillColor?: string;
+  /**
+   * The height of the track of the slider.
+   */
+  trackHeight?: number;
 };
 
 export function RangeSlider<T extends number | [number, number]>({
@@ -28,11 +58,11 @@ export function RangeSlider<T extends number | [number, number]>({
   range = [0, 100],
   step = 1,
   minDelta = 0,
-  thumbSize = 30,
-  trackHeight = 5,
-  thumbColor = '#111',
-  trackColor = '#000',
-  fillColor = '#0e7afe',
+  thumbColor = '#fff',
+  thumbSize = 27,
+  trackColor = 'rgba(0, 0, 0, 0.1)',
+  trackFillColor = '#3478f6',
+  trackHeight = 4,
 }: Props<T>) {
   // Get the distance between the range
   const distance = range[1] - range[0];
@@ -165,6 +195,13 @@ export function RangeSlider<T extends number | [number, number]>({
     borderRadius: thumbSize / 2,
     top: 0,
     backgroundColor: thumbColor,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
   } as const;
 
   return (
@@ -191,7 +228,7 @@ export function RangeSlider<T extends number | [number, number]>({
                     -thumbSize
                   : 0,
                 height: '100%',
-                backgroundColor: fillColor,
+                backgroundColor: trackFillColor,
               },
             ]}
           />
